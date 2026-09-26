@@ -537,9 +537,13 @@ void eth65_write_reg ( const unsigned int addr, const Uint8 data )
 			break;
 	}
 	if (addr >= 9 && addr <= 0xE) {
-		DEBUGPRINT("ETH: MAC address modification (byte #%d) from $%02X to $%02X at PC=$%04X" NL, addr - 9, eth_regs[addr], data, cpu65.old_pc);
+		int mac_idx = addr - 9;  // [FIX: bounds checking for buffer overflow]
+		if (mac_idx < 0 || mac_idx >= 6) {  // [FIX: validate mac_idx before array access]
+			FATAL("ETH: Invalid MAC address index %d (addr=%d)", mac_idx, addr);
+		}
+		DEBUGPRINT("ETH: MAC address modification (byte #%d) from $%02X to $%02X at PC=$%04X" NL, mac_idx, eth_regs[addr], data, cpu65.old_pc);
 		ETH_LOCK();
-		com.mac[addr - 9] = data;
+		com.mac[mac_idx] = data;  // [FIX: use validated index]
 		ETH_UNLOCK();
 	}
 	eth_regs[addr] = data;
