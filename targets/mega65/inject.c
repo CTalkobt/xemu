@@ -138,8 +138,9 @@ static void do_prg_test_inject ( const char *arg, const char *def_startup, const
 #define PRG_TEST_DELIM_CHAR ";"
 // Must be one char and as a char ...
 #define PRG_TEST_DELIM_CHAR_ADDR '@'
+#define CMDBUF_MAX 1024  // Safe size for BASIC command string [FIX: prevent buffer overflow]
 	char opt[strlen(arg) + 1];
-	char cmdbuf[strlen(arg) + 1];
+	char cmdbuf[CMDBUF_MAX];  // [FIX: increased from strlen(arg)+1 to prevent overflow]
 	strcpy(opt, arg);
 	cmdbuf[0] = '\0';
 	for (char *sav, *p = strtok_r(opt, PRG_TEST_DELIM_CHAR, &sav); p; p = strtok_r(NULL, PRG_TEST_DELIM_CHAR, &sav)) {
@@ -164,8 +165,8 @@ static void do_prg_test_inject ( const char *arg, const char *def_startup, const
 			free(xemu_load_buffer_p);
 			xemu_load_buffer_p = NULL;
 		} else {
-			strcat(cmdbuf, p);
-			strcat(cmdbuf, ":");
+			strncat(cmdbuf, p, CMDBUF_MAX - strlen(cmdbuf) - 1);  // [FIX: bounds-checked append]
+			strncat(cmdbuf, ":", CMDBUF_MAX - strlen(cmdbuf) - 1);  // [FIX: bounds-checked append]
 		}
 	}
 	if (cmdbuf[0])
@@ -256,6 +257,7 @@ static void command_callback ( void *unused )
 	if (prg.cmd_p == prg.cmd)
 		fdc_allow_disk_access(FDC_ALLOW_DISK_ACCESS);	// re-allow disk access
 	Uint8 *p = under_ready_p;
+	Uint8 *p_end = under_ready_p + 80;  // [FIX: limit to screen width for C65 mode]
 	*p++ = 32;
 	for (;;) {
 		const char c = *(prg.cmd_p++);
@@ -268,6 +270,10 @@ static void command_callback ( void *unused )
 		if (c == '|') {
 			is_ready_on_screen(1);	// clear already present READY. to be sure not to confuse us on waiting for another one ...
 			check_status = 1;	// re-engage the whole stuff ... (but with the next "part" of the command, where prg.cmd_p points to)
+			break;
+		}
+		if (p >= p_end) {  // [FIX: bounds check before writing]
+			DEBUGPRINT("INJECT: Command too long for screen, truncating" NL);
 			break;
 		}
 		_cbm_screen_write_char(p++, c);
