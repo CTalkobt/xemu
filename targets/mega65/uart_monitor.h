@@ -24,6 +24,12 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 extern void (*m65mon_callback)(void);
 extern int  breakpoint_pc;
+// Breakpoint list ('k' command): the emulation stops *before* executing an
+// opcode at one of these CPU (16-bit) addresses; a resume executes it once
+extern int  m65mon_bp_count;
+extern int  m65mon_bp_resume_pc;
+extern int  m65mon_bp_at        ( int pc );
+extern void m65mon_show_regs   ( void );
 
 extern int  uartmon_init           ( const char *fn );
 extern int  uartmon_is_active      ( void );

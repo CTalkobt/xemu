@@ -698,7 +698,7 @@ static void emulation_loop ( void )
 				} else {
 					DEBUGPRINT("TRACE: leaving trace mode @ $%04X" NL, cpu65.pc);
 #ifdef					HAS_UARTMON_SUPPORT
-					if (breakpoint_pc < 0)
+					if (breakpoint_pc < 0 && !m65mon_bp_count)
 						cpu_cycles_per_step = cpu_cycles_per_scanline;
 					else
 						cpu_cycles_per_step = 0;
@@ -711,6 +711,19 @@ static void emulation_loop ( void )
 		if (XEMU_UNLIKELY(hypervisor_is_debugged && in_hypervisor))
 			hypervisor_debug();
 #ifdef		HAS_UARTMON_SUPPORT
+		// 'k' breakpoints: stop before the opcode at PC (a resume from one
+		// executes it once: m65mon_bp_resume_pc)
+		if (XEMU_UNLIKELY(m65mon_bp_count) && !paused && !in_dma) {   // (not in a trace step)
+			if (cpu65.pc == m65mon_bp_resume_pc) {
+				m65mon_bp_resume_pc = -1;
+			} else if (m65mon_bp_at(cpu65.pc)) {
+				DEBUGPRINT("TRACE: Breakpoint @ $%04X hit (k), stopped before the opcode." NL, cpu65.pc);
+				m65mon_show_regs();
+				m65mon_bp_resume_pc = cpu65.pc;
+				paused = 1;
+				continue;
+			}
+		}
 		if (XEMU_UNLIKELY(breakpoint_pc == cpu65.pc)) {
 			DEBUGPRINT("TRACE: Breakpoint @ $%04X hit, Xemu moves to trace mode after the execution of this opcode." NL, cpu65.pc);
 			m65mon_show_regs();
