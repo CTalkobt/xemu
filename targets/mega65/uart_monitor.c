@@ -58,6 +58,11 @@ static char umon_write_buffer[UMON_WRITE_BUFFER_SIZE];
 
 void (*m65mon_callback)(void) = NULL;
 int breakpoint_pc = -1;
+// The 'k' breakpoint list (stop before the opcode; see uart_monitor.h)
+#define M65MON_MAX_BPS 64
+static int m65mon_bps[M65MON_MAX_BPS];
+int m65mon_bp_count = 0;
+int m65mon_bp_resume_pc = -1;
 int watchpoint_addr = -1;
 int watchpoint_val = -1;
 
@@ -108,6 +113,72 @@ static void m65mon_breakpoint ( int brk )
 		cpu_cycles_per_step = cpu_cycles_per_scanline;
 	else
 		cpu_cycles_per_step = 0;
+}
+
+static char *parse_hex_arg ( char *p, int *val, int min, int max );
+static int check_end_of_command ( char *p, int error_out );
+
+int m65mon_bp_at ( int pc )
+{
+	for (int i = 0; i < m65mon_bp_count; i++)
+		if (m65mon_bps[i] == pc)
+			return 1;
+	return 0;
+}
+
+// single opcode steps while any breakpoint is set (as 'b' does)
+static void m65mon_bp_speed ( void )
+{
+	cpu_cycles_per_step = (breakpoint_pc < 0 && !m65mon_bp_count && watchpoint_addr < 0) ? cpu_cycles_per_scanline : 0;
+}
+
+// k        list the breakpoints
+// k+ADDR   add one (16-bit CPU address; stops before executing the opcode there)
+// k-ADDR   remove one
+// k-       remove all
+static void m65mon_bp_command ( char *cmd )
+{
+	int addr;
+	while (*cmd == 32)
+		cmd++;
+	if (!*cmd) {
+		umon_printf("BREAKPOINTS:");
+		for (int i = 0; i < m65mon_bp_count; i++)
+			umon_printf(" %04X", m65mon_bps[i]);
+		return;
+	}
+	const char op = *cmd++;
+	while (*cmd == 32)
+		cmd++;
+	if (op == '-' && !*cmd) {
+		m65mon_bp_count = 0;
+		m65mon_bp_resume_pc = -1;
+		m65mon_bp_speed();
+		return;
+	}
+	if (op != '+' && op != '-') {
+		umon_printf(UMON_SYNTAX_ERROR "k, k+ADDR, k-ADDR or k-");
+		return;
+	}
+	cmd = parse_hex_arg(cmd, &addr, 0, 0xFFFF);
+	if (!cmd || !check_end_of_command(cmd, 1))
+		return;
+	if (op == '+') {
+		if (m65mon_bp_at(addr))
+			return;
+		if (m65mon_bp_count >= M65MON_MAX_BPS) {
+			umon_printf(UMON_SYNTAX_ERROR "too many breakpoints (%d)", M65MON_MAX_BPS);
+			return;
+		}
+		m65mon_bps[m65mon_bp_count++] = addr;
+	} else {
+		for (int i = 0; i < m65mon_bp_count; i++)
+			if (m65mon_bps[i] == addr) {
+				m65mon_bps[i] = m65mon_bps[--m65mon_bp_count];
+				break;
+			}
+	}
+	m65mon_bp_speed();
 }
 
 static void m65mon_watchpoint ( int addr )
@@ -358,6 +429,9 @@ static void execute_command ( char *cmd )
 		case 'g':
 			cmd = parse_hex_arg(cmd, &par1, 0, 0xFFFF);
 			m65mon_set_pc(par1);
+			break;
+		case 'k':
+			m65mon_bp_command(cmd);
 			break;
 		case 'w':
 			cmd = parse_hex_arg(cmd, &par1, 0, 0xFFFFFFF);
