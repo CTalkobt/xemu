@@ -106,13 +106,12 @@ static void m65mon_set_pc ( const Uint16 addr )
 	cpu65_debug_set_pc(addr);
 }
 
+static void m65mon_bp_speed ( void );
+
 static void m65mon_breakpoint ( int brk )
 {
 	breakpoint_pc = brk;
-	if (brk < 0)
-		cpu_cycles_per_step = cpu_cycles_per_scanline;
-	else
-		cpu_cycles_per_step = 0;
+	m65mon_bp_speed();	// (single opcode steps while 'b', 'w' or a 'k' breakpoint is set)
 }
 
 static char *parse_hex_arg ( char *p, int *val, int min, int max );
@@ -185,10 +184,7 @@ static void m65mon_watchpoint ( int addr )
 {
 	watchpoint_addr = addr;
 	watchpoint_val = debug_read_linear_byte(addr);
-	if (addr < 0)
-		cpu_cycles_per_step = cpu_cycles_per_scanline;
-	else
-		cpu_cycles_per_step = 0;
+	m65mon_bp_speed();
 }
 
 static void m65mon_dumpmem28 ( int addr )
