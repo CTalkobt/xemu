@@ -537,7 +537,7 @@ void eth65_write_reg ( const unsigned int addr, const Uint8 data )
 			break;
 	}
 	if (addr >= 9 && addr <= 0xE) {
-		DEBUGPRINT("ETH: MAC address modification (byte #%d) from $%02X to $%02X at PC=$%04X" NL, mac_idx, eth_regs[addr], data, cpu65.old_pc);
+		DEBUGPRINT("ETH: MAC address modification (byte #%d) from $%02X to $%02X at PC=$%04X" NL, addr - 9, eth_regs[addr], data, cpu65.old_pc);
 		ETH_LOCK();
 		com.mac[addr - 9] = data;
 		ETH_UNLOCK();
